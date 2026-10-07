@@ -1,0 +1,33 @@
+Table,Column,Issue,Rows Affected,Details
+Customers,AgeBand,Missing values,25,0.83% missing
+Customers,LoyaltyTier,Missing values,38,1.26% missing
+Customers,ALL,Duplicate rows,22,Complete duplicate records
+Customers,CustomerID,Duplicate ID,44,ID/key value occurs multiple times
+Customers,AgeBand,Empty strings,25,Blank text values found
+Customers,LoyaltyTier,Empty strings,38,Blank text values found
+Inventory,OnHandUnits,Missing values,120,0.46% missing
+Inventory,StoreID,Duplicate ID,25920,ID/key value occurs multiple times
+Inventory,ProductID,Duplicate ID,25920,ID/key value occurs multiple times
+Products,Brand,Missing values,7,1.33% missing
+Products,UnitCost,Missing values,12,2.27% missing
+Products,ALL,Duplicate rows,8,Complete duplicate records
+Products,ProductID,Duplicate ID,16,ID/key value occurs multiple times
+Products,Brand,Empty strings,7,Blank text values found
+Returns,RefundAmount,Missing values,10,0.29% missing
+Returns,ALL,Duplicate rows,15,Complete duplicate records
+Returns,ReturnID,Duplicate ID,30,ID/key value occurs multiple times
+Returns,TransactionID,Duplicate ID,32,ID/key value occurs multiple times
+Store Targets Legacy,store_code,Duplicate ID,432,ID/key value occurs multiple times
+Stores,SqFt,Missing values,2,11.11% missing
+Transactions,CustomerID,Missing values,16874,27.86% missing
+Transactions,Discount,Missing values,90,0.15% missing
+Transactions,LineAmount,Missing values,180,0.3% missing
+Transactions,ALL,Duplicate rows,122,Complete duplicate records
+Transactions,TransactionID,Duplicate ID,280,ID/key value occurs multiple times
+Transactions,CustomerID,Null ID,16874,ID/key value is missing
+Transactions,CustomerID,Duplicate ID,60577,ID/key value occurs multiple times
+Transactions,StoreID,Duplicate ID,60577,ID/key value occurs multiple times
+Transactions,ProductID,Duplicate ID,60532,ID/key value occurs multiple times
+Transactions,CustomerID,Empty strings,16874,Blank text values found
+Transactions,Quantity,Negative numeric values,60,Negative values require business review
+Transactions,OrderDate,Invalid date values,4846,Values cannot be converted to valid dates

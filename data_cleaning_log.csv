@@ -1,0 +1,22 @@
+Table,Issue,Rows Affected,Action,Why
+Customers,Inconsistent text spacing/capitalisation,425,Stripped whitespace and standardised categorical text,Ensures equivalent text values are represented consistently.
+Subscriptions,Inconsistent text spacing/capitalisation,448,"Stripped whitespace, standardised IDs and categorical text, and converted date columns",Ensures consistent IDs/categories and correct date data types.
+Usage,Inconsistent FeatureUsed casing,4724,Standardised FeatureUsed categories,Prevents categories such as API/api and Dashboard/dashboard from being treated separately.
+Tickets,Inconsistent Priority casing,1409,Standardised Priority values,Prevents High/high and Critical/CRITICAL from becoming separate categories.
+Customers,Missing Industry,10,Replaced missing values with 'Unknown',Industry is categorical and the original value cannot be reliably inferred.
+Customers,Missing AcquisitionChannel,6,Replaced missing values with 'Unknown',The acquisition source cannot be inferred safely from other columns.
+Customers,Missing EmployeeCount,5,Replaced missing values with median (80.0),EmployeeCount is numeric; the median is less affected by extreme values than the mean.
+Subscriptions,Missing Seats,4,Replaced missing values with median (7.0),Seats is numeric and the median is less sensitive to extreme values than the mean.
+Subscriptions,Missing MRR,7,Replaced missing values with median (294.52),MRR is numeric and the median is less affected by extreme values.
+Subscriptions,Missing EndDate,318,Kept missing values,"An active subscription may not have an end date, so the missing value is meaningful."
+Usage,Missing ActiveUsers,15,Replaced missing values with median (5.0),ActiveUsers is numeric and the median is less sensitive to extreme values.
+Usage,Missing SessionMinutes,25,Replaced missing values with median (235.5),SessionMinutes is numeric and the median is appropriate for missing observations.
+Tickets,Missing ResolutionHours,14,Replaced missing values with median (33.5),ResolutionHours is numeric and the median is less sensitive to extreme values.
+Tickets,Missing SatisfactionScore,22,Replaced missing values with median (6.0),SatisfactionScore is numeric and the median provides a robust central replacement.
+Customers,Duplicate rows,5,Removed exact duplicate rows,Duplicate records would cause double-counting during analysis.
+Subscriptions,Duplicate rows,6,Removed exact duplicate rows,Duplicate records would cause double-counting during analysis.
+Usage,Duplicate rows,18,Removed exact duplicate rows,Duplicate records would cause double-counting during analysis.
+Tickets,Duplicate rows,9,Removed exact duplicate rows,Duplicate records would cause double-counting during analysis.
+Subscriptions,CustomerID referential mismatch,5,Removed subscriptions whose CustomerID does not exist in Customers,CustomerID is a foreign key and orphan records cannot be linked to a valid customer.
+Usage,CustomerID referential mismatch,66,Removed usage records whose CustomerID does not exist in Customers,Usage records must belong to a valid customer.
+Tickets,CustomerID referential mismatch,21,Removed tickets whose CustomerID does not exist in Customers,Tickets must belong to a valid customer.
