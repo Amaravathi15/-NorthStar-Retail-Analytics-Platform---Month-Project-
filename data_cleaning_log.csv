@@ -1,0 +1,13 @@
+Table,Column,Issue,Rows Affected,Action,Justification
+Customers,LoyaltyTier,Inconsistent categorical formatting,60,Standardised LoyaltyTier labels,Consistent categories are required for reliable customer segmentation.
+Inventory,SnapshotMonth,Date/period formatting,25920,Converted SnapshotMonth to datetime,Monthly inventory snapshots should use a consistent date type.
+Products,LaunchDate,Date formatting,528,Converted LaunchDate to datetime,A consistent date type is required for product age and launch analysis.
+Returns,ReturnDate,Date formatting,3415,Converted ReturnDate to datetime,Return dates must use a consistent date type for return trend analysis.
+Store Targets Legacy,period,Period formatting,432,Converted Jan-YYYY values to datetime,Consistent period dates are required for target-versus-actual analysis.
+Stores,OpenDate,Date formatting,18,Converted OpenDate to datetime,Store opening dates need a consistent date type for store age analysis.
+Transactions,OrderDate,Date formatting,60577,Converted OrderDate to datetime,Transaction dates must use a consistent date type for sales analysis.
+Transactions,Quantity,Negative quantity,60,Flagged for review,Negative quantities may represent returns or adjustments and should not be overwritten without business rules.
+Campaigns,start_date,Date formatting,40,Converted start_date to datetime,Campaign dates must use a consistent date type for campaign analysis.
+Campaigns,end_date,Date formatting,40,Converted end_date to datetime,Campaign dates must use a consistent date type for duration analysis.
+Transactions,CustomerID,Missing foreign key,16874,Retained and flagged for review,The correct ID cannot be safely inferred.
+Transactions,ProductID,Referential mismatch,45,Retained and flagged for review,ID does not exist in Products.

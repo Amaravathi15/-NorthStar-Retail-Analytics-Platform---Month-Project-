@@ -1,0 +1,9 @@
+Table,Rows,Columns,MissingCells,DuplicateFullRows,WhitespaceIssues,InvalidDates
+customers,3022,8,63,22,0,0
+inventory,25920,6,120,0,0,0
+products,528,8,19,8,0,0
+returns,3415,6,10,15,0,0
+store_targets_legacy,432,4,0,0,0,0
+stores,18,8,2,0,0,0
+transactions,60577,10,21990,122,0,0
+campaigns,40,9,0,0,0,0

@@ -1,0 +1,19 @@
+StoreID,StoreName,City,State,Format,OpenDate,SqFt,Region
+ST101,NorthStar Chennai Flagship,Chennai,Tamil Nadu,Flagship,2020-03-05,8000.0,east
+ST102,NorthStar Coimbatore Standard,Coimbatore,Tamil Nadu,Standard,2021-12-30,8000.0,South
+ST103,NorthStar Bengaluru Express,Bengaluru,Karnataka,Express,2019-12-19,1200.0,North
+ST104,NorthStar Mysuru Standard,Mysuru,Karnataka,Standard,2019-09-16,2500.0,East
+ST105,NorthStar Hyderabad Flagship,Hyderabad,Telangana,Flagship,2020-10-08,4500.0,South
+ST106,NorthStar Mumbai Standard,Mumbai,Maharashtra,Standard,2020-12-07,8000.0,South
+ST107,NorthStar Pune Flagship,Pune,Maharashtra,Flagship,2023-02-06,1200.0,East
+ST108,NorthStar Delhi Express,Delhi,Delhi,Express,2022-03-20,1200.0,South
+ST109,NorthStar Kolkata Standard,Kolkata,West Bengal,Standard,2022-01-31,8000.0,west
+ST110,NorthStar Kochi Express,Kochi,Kerala,Express,2018-03-15,2500.0,South
+ST111,NorthStar Chennai Standard,Chennai,Tamil Nadu,Standard,2020-09-11,2500.0,South
+ST112,NorthStar Coimbatore Express,Coimbatore,Tamil Nadu,Express,2022-03-31,8000.0,South
+ST113,NorthStar Bengaluru Flagship,Bengaluru,Karnataka,Flagship,2022-08-28,,South
+ST114,NorthStar Mysuru Standard,Mysuru,Karnataka,Standard,2020-06-29,4500.0,North
+ST115,NorthStar Hyderabad Flagship,Hyderabad,Telangana,Flagship,2021-08-24,,South
+ST116,NorthStar Mumbai Standard,Mumbai,Maharashtra,Standard,2022-06-14,1200.0,West
+ST117,NorthStar Pune Standard,Pune,Maharashtra,Standard,2018-09-07,2500.0,West
+ST118,NorthStar Delhi Standard,Delhi,Delhi,Standard,2020-10-16,4500.0,north
