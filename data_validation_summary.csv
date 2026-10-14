@@ -1,0 +1,33 @@
+Table,Check,Result,Status
+campaigns,Exact duplicate rows remaining,0,PASS
+customers,Exact duplicate rows remaining,0,PASS
+inventory,Exact duplicate rows remaining,0,PASS
+products,Exact duplicate rows remaining,0,PASS
+returns,Exact duplicate rows remaining,0,PASS
+store_targets_legacy,Exact duplicate rows remaining,0,PASS
+stores,Exact duplicate rows remaining,0,PASS
+transactions,Exact duplicate rows remaining,0,PASS
+campaigns,No exact duplicate rows,0,PASS
+campaigns,Text whitespace issues,0,PASS
+campaigns,Missing cells,0,PASS
+customers,No exact duplicate rows,0,PASS
+customers,Text whitespace issues,0,PASS
+customers,Missing cells,63,REVIEW
+inventory,No exact duplicate rows,0,PASS
+inventory,Text whitespace issues,0,PASS
+inventory,Missing cells,120,REVIEW
+products,No exact duplicate rows,0,PASS
+products,Text whitespace issues,0,PASS
+products,Missing cells,18,REVIEW
+returns,No exact duplicate rows,0,PASS
+returns,Text whitespace issues,0,PASS
+returns,Missing cells,10,REVIEW
+store_targets_legacy,No exact duplicate rows,0,PASS
+store_targets_legacy,Text whitespace issues,0,PASS
+store_targets_legacy,Missing cells,0,PASS
+stores,No exact duplicate rows,0,PASS
+stores,Text whitespace issues,0,PASS
+stores,Missing cells,2,REVIEW
+transactions,No exact duplicate rows,0,PASS
+transactions,Text whitespace issues,0,PASS
+transactions,Missing cells,21962,REVIEW

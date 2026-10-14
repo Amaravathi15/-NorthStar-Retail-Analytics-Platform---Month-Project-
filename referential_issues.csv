@@ -1,0 +1,3 @@
+Child Table,Child Column,Parent Table,Issue Type,Rows Affected,Action
+Transactions,CustomerID,Customers,Missing key,16847,Retained; investigate source
+Transactions,ProductID,Products,Unmatched key,45,Retained; investigate source

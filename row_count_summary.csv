@@ -1,0 +1,9 @@
+Table,Raw Rows,Cleaned Rows,Rows Removed,Cleaned Columns
+Campaigns,40,40,0,9
+Customers,3022,3000,22,8
+Inventory,25920,25920,0,6
+Products,528,520,8,8
+Returns,3415,3400,15,6
+Store Targets Legacy,432,432,0,4
+Stores,18,18,0,8
+Transactions,60577,60455,122,10

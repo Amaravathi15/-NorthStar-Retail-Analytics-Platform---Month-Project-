@@ -1,0 +1,20 @@
+Table,Column,Issue,Rows Affected,Action,Justification
+Customers,Gender,Inconsistent known gender labels,3022,Mapped recognised M/m and F/f values; left unknown labels unchanged,Consistent known labels improve customer segmentation.
+Customers,LoyaltyTier,Inconsistent label casing,60,Standardised label casing using title,Consistent category labels improve grouping and reporting.
+Customers,__entire_row__,Exact duplicate records,22,"Removed exact duplicate rows, keeping the first copy","All columns match exactly, so repeated copies add no new information."
+Inventory,OnHandUnits,Missing or invalid numeric values,120,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Products,Category,Inconsistent label casing,22,Standardised label casing using title,Consistent category labels improve grouping and reporting.
+Products,UnitCost,Missing or invalid numeric values,12,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Products,__entire_row__,Exact duplicate records,8,"Removed exact duplicate rows, keeping the first copy","All columns match exactly, so repeated copies add no new information."
+Returns,Reason,Inconsistent label casing,659,Standardised label casing using title,Consistent category labels improve grouping and reporting.
+Returns,RefundAmount,Missing or invalid numeric values,10,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Returns,__entire_row__,Exact duplicate records,15,"Removed exact duplicate rows, keeping the first copy","All columns match exactly, so repeated copies add no new information."
+Stores,Region,Inconsistent label casing,3,Standardised label casing using title,Consistent category labels improve grouping and reporting.
+Stores,SqFt,Missing or invalid numeric values,2,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Transactions,OrderDate,Invalid date values,4846,Converted invalid dates to NaT and flagged them,Dates must not be guessed because that could distort time-based analysis.
+Transactions,Discount,Missing or invalid numeric values,90,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Transactions,LineAmount,Missing or invalid numeric values,180,Retained as NaN,Replacing missing amounts or quantities with zero could distort business calculations.
+Transactions,PaymentMode,Inconsistent label casing,23000,Standardised label casing using title,Consistent category labels improve grouping and reporting.
+Transactions,Quantity,Non-positive transaction quantity,60,Flagged for investigation; original values retained,"Check whether this represents a return, reversal, or invalid sale."
+Transactions,__entire_row__,Exact duplicate records,122,"Removed exact duplicate rows, keeping the first copy","All columns match exactly, so repeated copies add no new information."
+Campaigns,channel,Inconsistent label casing,10,Standardised label casing using title,Consistent category labels improve grouping and reporting.

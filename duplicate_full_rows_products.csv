@@ -1,0 +1,17 @@
+ProductID,ProductName,Category,SubCategory,Brand,UnitCost,MRP,LaunchDate
+P3118,Vertex Home 118,Home,Home-A,Solace,5516.68,12412.32,2024-03-30
+P3155,Onyx Grocery 155,Grocery,Grocery-C,Aurora,,3282.49,2023-04-18
+P3263,Aurora Apparel 263,Apparel,Apparel-A,Nimbus,3873.66,9104.8,2021-10-16
+P3269,Nimbus Footwear 269,Footwear,Footwear-A,Onyx,4100.1,8721.21,2022-03-19
+P3324,Nimbus Accessories 324,Accessories,Accessories-A,Kestrel,2611.84,4653.48,2024-06-27
+P3405,Lumen Apparel 405,Apparel,Apparel-B,Solace,3865.83,6677.76,2023-03-25
+P3406,Pavo Beauty 406,Beauty,Beauty-B,Aurora,1004.24,1557.84,2021-10-05
+P3416,Onyx Grocery 416,Grocery,Grocery-A,Lumen,1464.58,3221.12,2023-06-11
+P3406,Pavo Beauty 406,Beauty,Beauty-B,Aurora,1004.24,1557.84,2021-10-05
+P3405,Lumen Apparel 405,Apparel,Apparel-B,Solace,3865.83,6677.76,2023-03-25
+P3416,Onyx Grocery 416,Grocery,Grocery-A,Lumen,1464.58,3221.12,2023-06-11
+P3155,Onyx Grocery 155,Grocery,Grocery-C,Aurora,,3282.49,2023-04-18
+P3263,Aurora Apparel 263,Apparel,Apparel-A,Nimbus,3873.66,9104.8,2021-10-16
+P3324,Nimbus Accessories 324,Accessories,Accessories-A,Kestrel,2611.84,4653.48,2024-06-27
+P3118,Vertex Home 118,Home,Home-A,Solace,5516.68,12412.32,2024-03-30
+P3269,Nimbus Footwear 269,Footwear,Footwear-A,Onyx,4100.1,8721.21,2022-03-19

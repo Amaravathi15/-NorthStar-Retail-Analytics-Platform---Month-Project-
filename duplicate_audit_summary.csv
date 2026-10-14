@@ -1,0 +1,14 @@
+Table,Rows Before,Exact Duplicate Rows Removed,Rows After,Key Checked,Rows With Repeated Key
+Customers,3022.0,22.0,3000.0,,
+Customers,,,,CustomerID,0.0
+Inventory,25920.0,0.0,25920.0,,
+Products,528.0,8.0,520.0,,
+Products,,,,ProductID,0.0
+Returns,3415.0,15.0,3400.0,,
+Returns,,,,ReturnID,0.0
+Store Targets Legacy,432.0,0.0,432.0,,
+Stores,18.0,0.0,18.0,,
+Stores,,,,StoreID,0.0
+Transactions,60577.0,122.0,60455.0,,
+Campaigns,40.0,0.0,40.0,,
+Campaigns,,,,campaign_id,0.0
