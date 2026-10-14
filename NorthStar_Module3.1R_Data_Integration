@@ -1,0 +1,1429 @@
+# ============================================================
+# NORTHSTAR RETAIL 
+# MODULE 3 — DATA CLEANING
+# ============================================================
+
+import os
+import json
+import re
+import pandas as pd
+import numpy as np
+
+# ============================================================
+# 0. FOLDER PATHS
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RAW_DIR = BASE_DIR
+
+OUTPUT_DIR = os.path.join(BASE_DIR, "NorthStar_Cleaned_Data")
+DUPLICATE_DIR = os.path.join(OUTPUT_DIR, "duplicates")
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(DUPLICATE_DIR, exist_ok=True)
+
+print("=" * 80)
+print("NORTHSTAR RETAIL — MODULE 3: DATA CLEANING")
+print("=" * 80)
+print("Raw data folder:", RAW_DIR)
+print("Cleaned data folder:", OUTPUT_DIR)
+
+
+# ============================================================
+# 1. LOAD ALL EIGHT SOURCE FILES
+# ============================================================
+
+def load_csv(filename):
+    """Load a CSV file and report a useful error if missing."""
+
+    path = os.path.join(RAW_DIR, filename)
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Required file not found: {path}"
+        )
+
+    return pd.read_csv(path)
+
+
+def load_json_records(filename):
+    """Load JSON campaign records into a DataFrame."""
+
+    path = os.path.join(RAW_DIR, filename)
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Required file not found: {path}"
+        )
+
+    with open(path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    if isinstance(data, list):
+        return pd.json_normalize(data)
+
+    if isinstance(data, dict):
+        # Handle JSON containing a list inside a dictionary.
+        for value in data.values():
+            if isinstance(value, list):
+                return pd.json_normalize(value)
+
+    raise ValueError(
+        "campaigns.json must contain a list of campaign records "
+        "or a dictionary containing a list."
+    )
+
+
+campaigns = load_json_records("campaigns.json")
+customers = load_csv("customers.csv")
+inventory = load_csv("inventory.csv")
+products = load_csv("products.csv")
+returns = load_csv("returns.csv")
+store_targets_legacy = load_csv("store_targets_legacy.csv")
+stores = load_csv("stores.csv")
+transactions = load_csv("transactions.csv")
+
+
+# Keep original row counts for reporting.
+raw_tables = {
+    "Campaigns": campaigns.copy(),
+    "Customers": customers.copy(),
+    "Inventory": inventory.copy(),
+    "Products": products.copy(),
+    "Returns": returns.copy(),
+    "Store Targets Legacy": store_targets_legacy.copy(),
+    "Stores": stores.copy(),
+    "Transactions": transactions.copy()
+}
+
+print("\nAll eight source files loaded successfully.")
+
+for table_name, df in raw_tables.items():
+    print(f"{table_name:24s} Shape = {df.shape}")
+
+
+# ============================================================
+# 2. CLEANING LOG AND HELPER FUNCTIONS
+# ============================================================
+
+cleaning_log = []
+referential_issues = []
+duplicate_report = []
+validation_results = []
+
+
+def log_cleaning(
+    table,
+    column,
+    issue,
+    rows_affected,
+    action,
+    justification
+):
+    """Record every cleaning action or issue."""
+
+    cleaning_log.append({
+        "Table": table,
+        "Column": column,
+        "Issue": issue,
+        "Rows Affected": int(rows_affected),
+        "Action": action,
+        "Justification": justification
+    })
+
+
+def standardise_text(df, table_name, column):
+    """
+    Trim leading/trailing spaces and collapse repeated spaces.
+    Blank strings become missing values.
+    """
+
+    if column not in df.columns:
+        return
+
+    before = df[column].copy()
+
+    def clean_value(value):
+        if pd.isna(value):
+            return np.nan
+
+        value = re.sub(r"\s+", " ", str(value)).strip()
+
+        if value == "":
+            return np.nan
+
+        return value
+
+    df[column] = df[column].map(clean_value)
+
+    changed = int(
+        (
+            before.fillna("__NULL__").astype(str)
+            != df[column].fillna("__NULL__").astype(str)
+        ).sum()
+    )
+
+    if changed:
+        log_cleaning(
+            table_name,
+            column,
+            "Whitespace or blank text inconsistency",
+            changed,
+            "Trimmed spaces, collapsed repeated spaces, "
+            "converted blank strings to missing",
+            "Consistent text improves grouping and joins."
+        )
+
+
+def standardise_id_case(df, table_name, column):
+    """Standardise text IDs to uppercase without inventing IDs."""
+
+    if column not in df.columns:
+        return
+
+    before = df[column].copy()
+
+    df[column] = df[column].map(
+        lambda value: value.upper()
+        if isinstance(value, str)
+        else value
+    )
+
+    changed = int(
+        (
+            before.fillna("__NULL__").astype(str)
+            != df[column].fillna("__NULL__").astype(str)
+        ).sum()
+    )
+
+    if changed:
+        log_cleaning(
+            table_name,
+            column,
+            "Inconsistent ID letter case",
+            changed,
+            "Converted text IDs to uppercase",
+            "Consistent ID formatting supports reliable joins."
+        )
+
+
+def standardise_label(df, table_name, column, method="title"):
+    """Standardise label casing while preserving missing values."""
+
+    if column not in df.columns:
+        return
+
+    before = df[column].copy()
+
+    if method == "title":
+        df[column] = df[column].map(
+            lambda value: value.title()
+            if isinstance(value, str)
+            else value
+        )
+
+    elif method == "lower":
+        df[column] = df[column].map(
+            lambda value: value.lower()
+            if isinstance(value, str)
+            else value
+        )
+
+    changed = int(
+        (
+            before.fillna("__NULL__").astype(str)
+            != df[column].fillna("__NULL__").astype(str)
+        ).sum()
+    )
+
+    if changed:
+        log_cleaning(
+            table_name,
+            column,
+            "Inconsistent label casing",
+            changed,
+            f"Standardised label casing using {method}",
+            "Consistent category labels improve grouping and reporting."
+        )
+
+
+def parse_date_column(
+    df,
+    table_name,
+    column,
+    date_format=None
+):
+    """Convert date columns to datetime without guessing invalid dates."""
+
+    if column not in df.columns:
+        return
+
+    before = df[column].copy()
+
+    nonblank = (
+        before.notna()
+        & before.astype("string").str.strip().ne("")
+    )
+
+    parsed = pd.to_datetime(
+        before,
+        format=date_format,
+        errors="coerce"
+    )
+
+    invalid_count = int(
+        (nonblank & parsed.isna()).sum()
+    )
+
+    missing_count = int(
+        (~nonblank).sum()
+    )
+
+    if invalid_count:
+        log_cleaning(
+            table_name,
+            column,
+            "Invalid date values",
+            invalid_count,
+            "Converted invalid dates to NaT and flagged them",
+            "Dates must not be guessed because that could distort "
+            "time-based analysis."
+        )
+
+    if missing_count:
+        log_cleaning(
+            table_name,
+            column,
+            "Missing date values",
+            missing_count,
+            "Retained missing dates as NaT",
+            "No dates were invented."
+        )
+
+    df[column] = parsed
+
+
+def convert_numeric_column(df, table_name, column):
+    """Convert numeric columns and flag invalid values."""
+
+    if column not in df.columns:
+        return
+
+    before = df[column].copy()
+
+    nonblank = (
+        before.notna()
+        & before.astype("string").str.strip().ne("")
+    )
+
+    converted = pd.to_numeric(
+        before,
+        errors="coerce"
+    )
+
+    invalid_count = int(
+        (nonblank & converted.isna()).sum()
+    )
+
+    if invalid_count:
+        log_cleaning(
+            table_name,
+            column,
+            "Non-numeric values in numeric column",
+            invalid_count,
+            "Converted invalid values to NaN",
+            "Invalid numeric values require investigation; "
+            "they should not be silently replaced with zero."
+        )
+
+    missing_count = int(converted.isna().sum())
+
+    if missing_count:
+        log_cleaning(
+            table_name,
+            column,
+            "Missing or invalid numeric values",
+            missing_count,
+            "Retained as NaN",
+            "Replacing missing amounts or quantities with zero "
+            "could distort business calculations."
+        )
+
+    df[column] = converted
+
+
+def flag_invalid_values(
+    df,
+    table_name,
+    column,
+    condition,
+    issue,
+    justification
+):
+    """Log invalid values without silently changing them."""
+
+    if column not in df.columns:
+        return
+
+    mask = condition.fillna(False)
+    count = int(mask.sum())
+
+    if count:
+        log_cleaning(
+            table_name,
+            column,
+            issue,
+            count,
+            "Flagged for investigation; original values retained",
+            justification
+        )
+
+        print(
+            f"WARNING: {table_name}.{column}: "
+            f"{count} value(s) flagged — {issue}"
+        )
+
+
+def remove_exact_duplicates(df, table_name):
+    """
+    Remove only completely identical rows.
+    Conflicting business-key duplicates are not deleted.
+    """
+
+    duplicate_mask = df.duplicated(keep=False)
+    duplicate_count = int(df.duplicated().sum())
+
+    duplicate_report.append({
+        "Table": table_name,
+        "Rows Before": len(df),
+        "Exact Duplicate Rows Removed": duplicate_count,
+        "Rows After": len(df) - duplicate_count
+    })
+
+    if duplicate_mask.any():
+        duplicate_file = (
+            f"duplicate_full_rows_"
+            f"{table_name.lower().replace(' ', '_')}.csv"
+        )
+
+        df.loc[duplicate_mask].to_csv(
+            os.path.join(DUPLICATE_DIR, duplicate_file),
+            index=False
+        )
+
+    if duplicate_count:
+        df = df.drop_duplicates(keep="first").copy()
+
+        log_cleaning(
+            table_name,
+            "__entire_row__",
+            "Exact duplicate records",
+            duplicate_count,
+            "Removed exact duplicate rows, keeping the first copy",
+            "All columns match exactly, so repeated copies "
+            "add no new information."
+        )
+
+    return df
+
+
+def check_repeated_key(
+    df,
+    table_name,
+    key_column
+):
+    """
+    Report repeated keys for investigation.
+    Do not delete non-identical records automatically.
+    """
+
+    if key_column not in df.columns:
+        return
+
+    valid_ids = df[key_column].dropna()
+    duplicate_mask = (
+        df[key_column].notna()
+        & df[key_column].duplicated(keep=False)
+    )
+
+    repeated_rows = int(duplicate_mask.sum())
+
+    duplicate_report.append({
+        "Table": table_name,
+        "Key Checked": key_column,
+        "Rows With Repeated Key": repeated_rows
+    })
+
+    if repeated_rows:
+        filename = (
+            f"repeated_key_{table_name.lower().replace(' ', '_')}_"
+            f"{key_column.lower()}.csv"
+        )
+
+        df.loc[duplicate_mask].to_csv(
+            os.path.join(DUPLICATE_DIR, filename),
+            index=False
+        )
+
+        log_cleaning(
+            table_name,
+            key_column,
+            "Repeated business key",
+            repeated_rows,
+            "Saved repeated-key records for investigation; "
+            "retained records",
+            "Non-identical records must not be deleted without "
+            "a documented business rule."
+        )
+
+        print(
+            f"WARNING: {table_name}.{key_column} has "
+            f"{repeated_rows} rows with repeated keys. "
+            f"Review the duplicates folder."
+        )
+
+
+# ============================================================
+# 3. CUSTOMERS
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — CUSTOMERS")
+print("=" * 80)
+
+# CustomerID
+standardise_text(customers, "Customers", "CustomerID")
+standardise_id_case(customers, "Customers", "CustomerID")
+
+# CustomerName
+standardise_text(customers, "Customers", "CustomerName")
+
+# Gender
+standardise_text(customers, "Customers", "Gender")
+
+if "Gender" in customers.columns:
+    before = customers["Gender"].copy()
+
+    gender_map = {
+        "m": "Male",
+        "male": "Male",
+        "f": "Female",
+        "female": "Female"
+    }
+
+    customers["Gender"] = customers["Gender"].map(
+        lambda value: gender_map.get(value.casefold(), value)
+        if isinstance(value, str)
+        else value
+    )
+
+    changed = int(
+        (
+            before.fillna("__NULL__").astype(str)
+            != customers["Gender"].fillna("__NULL__").astype(str)
+        ).sum()
+    )
+
+    if changed:
+        log_cleaning(
+            "Customers",
+            "Gender",
+            "Inconsistent known gender labels",
+            changed,
+            "Mapped recognised M/m and F/f values; "
+            "left unknown labels unchanged",
+            "Consistent known labels improve customer segmentation."
+        )
+
+# AgeBand
+standardise_text(customers, "Customers", "AgeBand")
+
+# City
+standardise_text(customers, "Customers", "City")
+standardise_label(customers, "Customers", "City", "title")
+
+# LoyaltyTier
+standardise_text(customers, "Customers", "LoyaltyTier")
+standardise_label(customers, "Customers", "LoyaltyTier", "title")
+
+# JoinDate
+parse_date_column(customers, "Customers", "JoinDate")
+
+# EmailOptIn
+standardise_text(customers, "Customers", "EmailOptIn")
+
+if "EmailOptIn" in customers.columns:
+    before = customers["EmailOptIn"].copy()
+
+    optin_map = {
+        "yes": "Yes",
+        "no": "No",
+        "true": "Yes",
+        "false": "No",
+        "1": "Yes",
+        "0": "No"
+    }
+
+    customers["EmailOptIn"] = customers["EmailOptIn"].map(
+        lambda value: optin_map.get(value.casefold(), value)
+        if isinstance(value, str)
+        else value
+    )
+
+    changed = int(
+        (
+            before.fillna("__NULL__").astype(str)
+            != customers["EmailOptIn"].fillna("__NULL__").astype(str)
+        ).sum()
+    )
+
+    if changed:
+        log_cleaning(
+            "Customers",
+            "EmailOptIn",
+            "Inconsistent known opt-in labels",
+            changed,
+            "Standardised recognised Yes/No values",
+            "Consistent opt-in labels support campaign analysis."
+        )
+
+customers = remove_exact_duplicates(customers, "Customers")
+check_repeated_key(customers, "Customers", "CustomerID")
+
+print("Customers shape:", customers.shape)
+
+
+# ============================================================
+# 4. INVENTORY
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — INVENTORY")
+print("=" * 80)
+
+parse_date_column(inventory, "Inventory", "SnapshotMonth")
+
+for column in ["StoreID", "ProductID"]:
+    standardise_text(inventory, "Inventory", column)
+    standardise_id_case(inventory, "Inventory", column)
+
+for column in ["OnHandUnits", "ReorderLevel", "StockoutFlag"]:
+    convert_numeric_column(inventory, "Inventory", column)
+
+if "OnHandUnits" in inventory.columns:
+    flag_invalid_values(
+        inventory,
+        "Inventory",
+        "OnHandUnits",
+        inventory["OnHandUnits"] < 0,
+        "Negative inventory quantity",
+        "Confirm whether this represents an adjustment or source error."
+    )
+
+if "ReorderLevel" in inventory.columns:
+    flag_invalid_values(
+        inventory,
+        "Inventory",
+        "ReorderLevel",
+        inventory["ReorderLevel"] < 0,
+        "Negative reorder level",
+        "Reorder levels are normally non-negative; confirm the source."
+    )
+
+if "StockoutFlag" in inventory.columns:
+    flag_invalid_values(
+        inventory,
+        "Inventory",
+        "StockoutFlag",
+        ~inventory["StockoutFlag"].isin([0, 1]),
+        "StockoutFlag outside expected 0/1 values",
+        "Check the source definition of the stockout indicator."
+    )
+
+inventory = remove_exact_duplicates(inventory, "Inventory")
+
+print("Inventory shape:", inventory.shape)
+
+
+# ============================================================
+# 5. PRODUCTS
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — PRODUCTS")
+print("=" * 80)
+
+standardise_text(products, "Products", "ProductID")
+standardise_id_case(products, "Products", "ProductID")
+
+for column in ["ProductName", "Category", "SubCategory", "Brand"]:
+    standardise_text(products, "Products", column)
+
+for column in ["Category", "SubCategory", "Brand"]:
+    standardise_label(products, "Products", column, "title")
+
+for column in ["UnitCost", "MRP"]:
+    convert_numeric_column(products, "Products", column)
+
+parse_date_column(products, "Products", "LaunchDate")
+
+if "UnitCost" in products.columns:
+    flag_invalid_values(
+        products,
+        "Products",
+        "UnitCost",
+        products["UnitCost"] < 0,
+        "Negative unit cost",
+        "Confirm whether negative costs are valid adjustments."
+    )
+
+if "MRP" in products.columns:
+    flag_invalid_values(
+        products,
+        "Products",
+        "MRP",
+        products["MRP"] < 0,
+        "Negative MRP",
+        "Confirm negative listed prices with the source system."
+    )
+
+products = remove_exact_duplicates(products, "Products")
+check_repeated_key(products, "Products", "ProductID")
+
+print("Products shape:", products.shape)
+
+
+# ============================================================
+# 6. RETURNS
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — RETURNS")
+print("=" * 80)
+
+for column in ["ReturnID", "TransactionID"]:
+    standardise_text(returns, "Returns", column)
+    standardise_id_case(returns, "Returns", column)
+
+for column in ["Reason", "Condition"]:
+    standardise_text(returns, "Returns", column)
+    standardise_label(returns, "Returns", column, "title")
+
+parse_date_column(returns, "Returns", "ReturnDate")
+
+convert_numeric_column(
+    returns,
+    "Returns",
+    "RefundAmount"
+)
+
+if "RefundAmount" in returns.columns:
+    flag_invalid_values(
+        returns,
+        "Returns",
+        "RefundAmount",
+        returns["RefundAmount"] < 0,
+        "Negative refund amount",
+        "Check the source definition before treating a negative refund "
+        "as an error."
+    )
+
+returns = remove_exact_duplicates(returns, "Returns")
+check_repeated_key(returns, "Returns", "ReturnID")
+
+# TransactionID may repeat in returns if multiple return records
+# relate to the same transaction. Do not require uniqueness here.
+
+print("Returns shape:", returns.shape)
+
+
+# ============================================================
+# 7. STORE TARGETS LEGACY
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — STORE TARGETS LEGACY")
+print("=" * 80)
+
+# IMPORTANT:
+# Do not rename store_code or period here.
+# Module 4 will reconcile these legacy fields to the main schema.
+
+standardise_text(
+    store_targets_legacy,
+    "Store Targets Legacy",
+    "store_code"
+)
+
+standardise_id_case(
+    store_targets_legacy,
+    "Store Targets Legacy",
+    "store_code"
+)
+
+standardise_text(
+    store_targets_legacy,
+    "Store Targets Legacy",
+    "period"
+)
+
+# The source period is expected to look like Jan-2023.
+if "period" in store_targets_legacy.columns:
+    parse_date_column(
+        store_targets_legacy,
+        "Store Targets Legacy",
+        "period",
+        date_format="%b-%Y"
+    )
+
+for column in ["sales_target_inr", "footfall_target"]:
+    convert_numeric_column(
+        store_targets_legacy,
+        "Store Targets Legacy",
+        column
+    )
+
+for column in ["sales_target_inr", "footfall_target"]:
+    if column in store_targets_legacy.columns:
+        flag_invalid_values(
+            store_targets_legacy,
+            "Store Targets Legacy",
+            column,
+            store_targets_legacy[column] < 0,
+            "Negative target value",
+            "Confirm negative targets with the legacy finance source."
+        )
+
+store_targets_legacy = remove_exact_duplicates(
+    store_targets_legacy,
+    "Store Targets Legacy"
+)
+
+print("Store targets shape:", store_targets_legacy.shape)
+
+
+# ============================================================
+# 8. STORES
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — STORES")
+print("=" * 80)
+
+standardise_text(stores, "Stores", "StoreID")
+standardise_id_case(stores, "Stores", "StoreID")
+
+for column in ["StoreName", "City", "State", "Format", "Region"]:
+    standardise_text(stores, "Stores", column)
+
+for column in ["City", "State", "Format", "Region"]:
+    standardise_label(stores, "Stores", column, "title")
+
+parse_date_column(stores, "Stores", "OpenDate")
+
+for column in ["SqFt"]:
+    convert_numeric_column(stores, "Stores", column)
+
+if "SqFt" in stores.columns:
+    flag_invalid_values(
+        stores,
+        "Stores",
+        "SqFt",
+        stores["SqFt"] <= 0,
+        "Non-positive store area",
+        "Store area should be positive; verify the source value."
+    )
+
+stores = remove_exact_duplicates(stores, "Stores")
+check_repeated_key(stores, "Stores", "StoreID")
+
+print("Stores shape:", stores.shape)
+
+
+# ============================================================
+# 9. TRANSACTIONS
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — TRANSACTIONS")
+print("=" * 80)
+
+# Business identifiers
+for column in ["TransactionID", "CustomerID", "StoreID", "ProductID"]:
+    standardise_text(transactions, "Transactions", column)
+    standardise_id_case(transactions, "Transactions", column)
+
+# Dates
+parse_date_column(transactions, "Transactions", "OrderDate")
+
+# Numeric transaction fields
+for column in ["Quantity", "Discount", "LineAmount"]:
+    convert_numeric_column(transactions, "Transactions", column)
+
+# Channel and PaymentMode
+for column in ["Channel", "PaymentMode"]:
+    standardise_text(transactions, "Transactions", column)
+
+standardise_label(transactions, "Transactions", "Channel", "upper")
+standardise_label(transactions, "Transactions", "PaymentMode", "title")
+
+# Negative quantities or amounts must be investigated.
+if "Quantity" in transactions.columns:
+    flag_invalid_values(
+        transactions,
+        "Transactions",
+        "Quantity",
+        transactions["Quantity"] <= 0,
+        "Non-positive transaction quantity",
+        "Check whether this represents a return, reversal, or invalid sale."
+    )
+
+if "LineAmount" in transactions.columns:
+    flag_invalid_values(
+        transactions,
+        "Transactions",
+        "LineAmount",
+        transactions["LineAmount"] < 0,
+        "Negative transaction line amount",
+        "Confirm whether negative line amounts represent adjustments "
+        "or source errors."
+    )
+
+if "Discount" in transactions.columns:
+    flag_invalid_values(
+        transactions,
+        "Transactions",
+        "Discount",
+        (
+            (transactions["Discount"] < 0)
+            | (transactions["Discount"] > 1)
+        ),
+        "Discount outside expected 0–1 range",
+        "This assumes Discount is stored as a proportion. "
+        "Verify the source definition before changing values."
+    )
+
+# Remove only fully identical transaction rows.
+# Do not remove repeated TransactionID values by themselves:
+# one transaction may contain multiple product lines.
+transactions = remove_exact_duplicates(
+    transactions,
+    "Transactions"
+)
+
+print("Transactions shape:", transactions.shape)
+
+
+# ============================================================
+# 10. CAMPAIGNS
+# ============================================================
+
+print("\n" + "=" * 80)
+print("CLEANING — CAMPAIGNS")
+print("=" * 80)
+
+# campaigns.json has been normalised into a DataFrame.
+# This ensures it is included in cleaning and Module 4 outputs.
+
+for column in ["campaign_id"]:
+    standardise_text(campaigns, "Campaigns", column)
+    standardise_id_case(campaigns, "Campaigns", column)
+
+for column in ["name", "channel", "target_category"]:
+    standardise_text(campaigns, "Campaigns", column)
+
+standardise_label(campaigns, "Campaigns", "channel", "title")
+standardise_label(campaigns, "Campaigns", "target_category", "title")
+
+for column in ["start_date", "end_date"]:
+    parse_date_column(campaigns, "Campaigns", column)
+
+for column in ["spend_inr", "impressions", "clicks"]:
+    convert_numeric_column(campaigns, "Campaigns", column)
+
+for column in ["spend_inr", "impressions", "clicks"]:
+    if column in campaigns.columns:
+        flag_invalid_values(
+            campaigns,
+            "Campaigns",
+            column,
+            campaigns[column] < 0,
+            "Negative campaign metric",
+            "Confirm negative spend, impression, or click values "
+            "with the campaign source."
+        )
+
+if {"start_date", "end_date"}.issubset(campaigns.columns):
+    bad_dates = (
+        campaigns["start_date"].notna()
+        & campaigns["end_date"].notna()
+        & (campaigns["end_date"] < campaigns["start_date"])
+    )
+
+    flag_invalid_values(
+        campaigns,
+        "Campaigns",
+        "end_date",
+        bad_dates,
+        "Campaign end date precedes start date",
+        "Confirm campaign date ranges with the marketing source."
+    )
+
+campaigns = remove_exact_duplicates(campaigns, "Campaigns")
+check_repeated_key(campaigns, "Campaigns", "campaign_id")
+
+print("Campaigns shape:", campaigns.shape)
+
+
+# ============================================================
+# 11. DUPLICATE AUDIT — ALL EIGHT TABLES
+# ============================================================
+
+print("\n" + "=" * 80)
+print("11. DUPLICATE AUDIT")
+print("=" * 80)
+
+cleaned_tables = {
+    "campaigns": campaigns,
+    "customers": customers,
+    "inventory": inventory,
+    "products": products,
+    "returns": returns,
+    "store_targets_legacy": store_targets_legacy,
+    "stores": stores,
+    "transactions": transactions
+}
+
+# Check exact duplicate rows remaining after cleaning.
+for table_name, df in cleaned_tables.items():
+    exact_duplicates = int(df.duplicated().sum())
+
+    print(
+        f"{table_name:24s} "
+        f"Exact duplicate rows remaining: {exact_duplicates}"
+    )
+
+    validation_results.append({
+        "Table": table_name,
+        "Check": "Exact duplicate rows remaining",
+        "Result": exact_duplicates,
+        "Status": "PASS" if exact_duplicates == 0 else "REVIEW"
+    })
+
+
+# ============================================================
+# 12. REFERENTIAL INTEGRITY CHECK
+# ============================================================
+
+print("\n" + "=" * 80)
+print("12. REFERENTIAL INTEGRITY CHECK")
+print("=" * 80)
+
+# Use IDs from cleaned dimension tables.
+customer_ids = set(
+    customers["CustomerID"].dropna().astype(str)
+)
+
+product_ids = set(
+    products["ProductID"].dropna().astype(str)
+)
+
+store_ids = set(
+    stores["StoreID"].dropna().astype(str)
+)
+
+transaction_ids = set(
+    transactions["TransactionID"].dropna().astype(str)
+)
+
+
+def record_referential_issues(
+    child_df,
+    child_table,
+    child_column,
+    valid_ids,
+    parent_table,
+    allow_values=None
+):
+    """
+    Find child IDs that do not match a parent ID.
+    Retain the original records and export the issues.
+    """
+
+    if child_column not in child_df.columns:
+        return
+
+    if allow_values is None:
+        allow_values = set()
+
+    values = child_df[child_column].astype("string").str.strip()
+
+    invalid_mask = (
+        values.notna()
+        & values.ne("")
+        & ~values.isin(valid_ids)
+        & ~values.isin(allow_values)
+    )
+
+    missing_mask = (
+        values.isna()
+        | values.eq("")
+    )
+
+    invalid_count = int(invalid_mask.sum())
+    missing_count = int(missing_mask.sum())
+
+    if missing_count:
+        referential_issues.append({
+            "Child Table": child_table,
+            "Child Column": child_column,
+            "Parent Table": parent_table,
+            "Issue Type": "Missing key",
+            "Rows Affected": missing_count,
+            "Action": "Retained; investigate source"
+        })
+
+    if invalid_count:
+        referential_issues.append({
+            "Child Table": child_table,
+            "Child Column": child_column,
+            "Parent Table": parent_table,
+            "Issue Type": "Unmatched key",
+            "Rows Affected": invalid_count,
+            "Action": "Retained; investigate source"
+        })
+
+    if invalid_count or missing_count:
+        detail = child_df.loc[
+            invalid_mask | missing_mask
+        ].copy()
+
+        detail["ReferentialIssue"] = np.where(
+            missing_mask.loc[detail.index],
+            "Missing key",
+            "Unmatched key"
+        )
+
+        safe_name = (
+            f"referential_{child_table.lower().replace(' ', '_')}_"
+            f"{child_column.lower()}.csv"
+        )
+
+        detail.to_csv(
+            os.path.join(DUPLICATE_DIR, safe_name),
+            index=False
+        )
+
+        print(
+            f"{child_table}.{child_column}: "
+            f"{missing_count} missing, "
+            f"{invalid_count} unmatched"
+        )
+
+
+# Transactions -> Customers
+record_referential_issues(
+    transactions,
+    "Transactions",
+    "CustomerID",
+    customer_ids,
+    "Customers"
+)
+
+# Transactions -> Products
+record_referential_issues(
+    transactions,
+    "Transactions",
+    "ProductID",
+    product_ids,
+    "Products"
+)
+
+# Transactions -> Stores
+# ONLINE is a valid channel/location marker for online sales,
+# but it is not a physical StoreID in stores.csv.
+record_referential_issues(
+    transactions,
+    "Transactions",
+    "StoreID",
+    store_ids,
+    "Stores",
+    allow_values={"ONLINE"}
+)
+
+# Inventory -> Stores
+record_referential_issues(
+    inventory,
+    "Inventory",
+    "StoreID",
+    store_ids,
+    "Stores",
+    allow_values={"ONLINE"}
+)
+
+# Inventory -> Products
+record_referential_issues(
+    inventory,
+    "Inventory",
+    "ProductID",
+    product_ids,
+    "Products"
+)
+
+# Returns -> Transactions
+record_referential_issues(
+    returns,
+    "Returns",
+    "TransactionID",
+    transaction_ids,
+    "Transactions"
+)
+
+# Legacy store targets -> Stores
+record_referential_issues(
+    store_targets_legacy,
+    "Store Targets Legacy",
+    "store_code",
+    store_ids,
+    "Stores"
+)
+
+# Important:
+# Do not create fake CustomerID/ProductID/StoreID values.
+# Do not delete unmatched transactions.
+# Review the exported reports before Module 4.
+
+
+# ============================================================
+# 13. SAVE DATA CLEANING LOG
+# ============================================================
+
+print("\n" + "=" * 80)
+print("13. SAVING DATA CLEANING LOG")
+print("=" * 80)
+
+cleaning_log_df = pd.DataFrame(
+    cleaning_log,
+    columns=[
+        "Table",
+        "Column",
+        "Issue",
+        "Rows Affected",
+        "Action",
+        "Justification"
+    ]
+)
+
+cleaning_log_path = os.path.join(
+    OUTPUT_DIR,
+    "data_cleaning_log.csv"
+)
+
+cleaning_log_df.to_csv(
+    cleaning_log_path,
+    index=False
+)
+
+print("Cleaning log saved:", cleaning_log_path)
+
+
+# ============================================================
+# 14. EXPORT ALL EIGHT CLEANED TABLES
+# ============================================================
+
+print("\n" + "=" * 80)
+print("14. EXPORTING CLEANED TABLES")
+print("=" * 80)
+
+for table_name, df in cleaned_tables.items():
+    output_path = os.path.join(
+        OUTPUT_DIR,
+        f"cleaned_{table_name}.csv"
+    )
+
+    df.to_csv(output_path, index=False)
+
+    print(
+        f"Saved {table_name:24s} "
+        f"Rows={len(df):6d} "
+        f"Columns={len(df.columns):3d}"
+    )
+
+
+# ============================================================
+# 15. FINAL DATA QUALITY VALIDATION
+# ============================================================
+
+print("\n" + "=" * 80)
+print("15. FINAL DATA QUALITY VALIDATION")
+print("=" * 80)
+
+for table_name, df in cleaned_tables.items():
+
+    # Check for remaining exact duplicate rows.
+    exact_duplicates = int(df.duplicated().sum())
+
+    validation_results.append({
+        "Table": table_name,
+        "Check": "No exact duplicate rows",
+        "Result": exact_duplicates,
+        "Status": "PASS" if exact_duplicates == 0 else "REVIEW"
+    })
+
+    # Check text columns for leading/trailing spaces.
+    text_columns = df.select_dtypes(
+        include=["object", "string"]
+    ).columns
+
+    whitespace_issues = 0
+
+    for column in text_columns:
+        nonmissing = df[column].dropna().astype(str)
+
+        whitespace_issues += int(
+            nonmissing.map(
+                lambda value: (
+                    value != value.strip()
+                    or re.search(r"\s{2,}", value) is not None
+                )
+            ).sum()
+        )
+
+    validation_results.append({
+        "Table": table_name,
+        "Check": "Text whitespace issues",
+        "Result": whitespace_issues,
+        "Status": "PASS" if whitespace_issues == 0 else "REVIEW"
+    })
+
+    # Check missing values: report, do not automatically fill.
+    missing_cells = int(df.isna().sum().sum())
+
+    validation_results.append({
+        "Table": table_name,
+        "Check": "Missing cells",
+        "Result": missing_cells,
+        "Status": "REVIEW" if missing_cells > 0 else "PASS"
+    })
+
+    print(
+        f"{table_name:24s} "
+        f"Rows={len(df):6d} "
+        f"Columns={len(df.columns):3d} "
+        f"Missing cells={missing_cells:6d} "
+        f"Exact duplicates={exact_duplicates}"
+    )
+
+
+# Save row-count summary.
+row_count_summary = pd.DataFrame([
+    {
+        "Table": table_name,
+        "Raw Rows": len(raw_tables[table_name.title()])
+        if table_name.title() in raw_tables
+        else len(raw_tables.get(
+            table_name.replace("_", " ").title(), df
+        )),
+        "Cleaned Rows": len(df),
+        "Cleaned Columns": len(df.columns)
+    }
+    for table_name, df in cleaned_tables.items()
+])
+
+# Build a more reliable raw-to-clean row-count summary using
+# the raw table names and their corresponding cleaned tables.
+raw_to_clean = {
+    "Campaigns": ("Campaigns", campaigns),
+    "Customers": ("Customers", customers),
+    "Inventory": ("Inventory", inventory),
+    "Products": ("Products", products),
+    "Returns": ("Returns", returns),
+    "Store Targets Legacy": ("Store Targets Legacy", store_targets_legacy),
+    "Stores": ("Stores", stores),
+    "Transactions": ("Transactions", transactions)
+}
+
+row_count_summary = pd.DataFrame([
+    {
+        "Table": name,
+        "Raw Rows": len(raw_tables[name]),
+        "Cleaned Rows": len(clean_df),
+        "Rows Removed": len(raw_tables[name]) - len(clean_df),
+        "Cleaned Columns": len(clean_df.columns)
+    }
+    for name, (_, clean_df) in raw_to_clean.items()
+])
+
+row_count_summary.to_csv(
+    os.path.join(OUTPUT_DIR, "row_count_summary.csv"),
+    index=False
+)
+
+# Save duplicate audit.
+pd.DataFrame(duplicate_report).to_csv(
+    os.path.join(OUTPUT_DIR, "duplicate_audit_summary.csv"),
+    index=False
+)
+
+# Save referential issues.
+pd.DataFrame(
+    referential_issues,
+    columns=[
+        "Child Table",
+        "Child Column",
+        "Parent Table",
+        "Issue Type",
+        "Rows Affected",
+        "Action"
+    ]
+).to_csv(
+    os.path.join(OUTPUT_DIR, "referential_issues.csv"),
+    index=False
+)
+
+# Save final validation report.
+pd.DataFrame(validation_results).to_csv(
+    os.path.join(OUTPUT_DIR, "data_validation_summary.csv"),
+    index=False
+)
+
+print("\nReports saved successfully.")
+
+
+# ============================================================
+# 16. MODULE 3 COMPLETION SUMMARY
+# ============================================================
+
+print("\n" + "=" * 80)
+print("MODULE 3 — COMPLETION SUMMARY")
+print("=" * 80)
+
+print("Source tables processed:", len(raw_tables))
+print("Cleaning log entries:", len(cleaning_log))
+print("Referential issue categories:", len(referential_issues))
+print("Output folder:", OUTPUT_DIR)
+
+print("\nCleaned files created:")
+
+for table_name in cleaned_tables:
+    print(f" - cleaned_{table_name}.csv")
+
+print("\nAdditional reports created:")
+print(" - data_cleaning_log.csv")
+print(" - data_validation_summary.csv")
+print(" - duplicate_audit_summary.csv")
+print(" - referential_issues.csv")
+print(" - row_count_summary.csv")
+print(" - duplicates/ folder")
+
+print("\nIMPORTANT BEFORE MODULE 4:")
+print("1. Review referential_issues.csv.")
+print("2. Investigate missing CustomerID values.")
+print("3. Investigate ProductID values missing from products.csv.")
+print("4. Keep ONLINE separate from physical StoreID values.")
+print("5. Reconcile store_code and period from legacy targets in Module 4.")
+print("6. Do not delete valid transaction lines just because TransactionID repeats.")
+
+print("\nMODULE 3 SCRIPT FINISHED.")
+print("Review all reports before treating the data as ready for integration.")
+print("=" * 80)
